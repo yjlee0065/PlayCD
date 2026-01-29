@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Notion CD Player</title>
+    <style>
+        body { margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; background: transparent; overflow: hidden; font-family: 'Pretendard', sans-serif; }
+        
+        .player-wrapper { position: relative; width: 200px; height: 200px; margin-bottom: 20px; cursor: pointer; border-radius: 50%; }
+        #cd-image { 
+            width: 100%; height: 100%; border-radius: 50%; 
+            background-size: cover; background-position: center; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15); border: 5px solid #fff; 
+            animation: rotate 10s linear infinite; animation-play-state: paused;
+            box-sizing: border-box;
+        }
+        .cd-center { position: absolute; top: 50%; left: 50%; width: 35px; height: 35px; background: #fff; border-radius: 50%; z-index: 2; transform: translate(-50%, -50%); pointer-events: none; }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .controls { width: 240px; display: flex; flex-direction: column; align-items: center; }
+        .song-title { font-size: 15px; font-weight: bold; color: #555; margin-bottom: 12px; text-align: center; width: 100%; }
+        
+        .progress-container { width: 100%; margin-bottom: 4px; display: flex; align-items: center; }
+
+        /* 🔥 재생바 디자인 완전 개편 */
+        input[type="range"] { 
+            -webkit-appearance: none;
+            width: 100%; 
+            height: 6px; /* 트랙 높이 */
+            background: transparent; 
+            cursor: pointer;
+            margin: 0;
+            outline: none;
+            /* 트랙 자체에 둥근 테두리와 배경 설정 */
+            border-radius: 10px;
+            border: 1px solid #B2DFDB;
+            background-image: linear-gradient(#B2DFDB, #B2DFDB);
+            background-size: 0% 100%;
+            background-repeat: no-repeat;
+        }
+
+        /* 크롬/노션용 손잡이(Thumb) 디자인 */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #B2DFDB;
+            cursor: pointer;
+            border: 2px solid #fff; /* 손잡이를 더 잘 보이게 흰색 테두리 추가 */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            margin-top: 0px; /* 위치 수동 조정 */
+        }
+
+        /* 트랙 배경(투명화 유지) */
+        input[type="range"]::-webkit-slider-runnable-track {
+            background: transparent;
+            border: none;
+        }
+
+        .time-info { width: 100%; display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 5px; }
+        .buttons { position: relative; display: flex; align-items: center; gap: 20px; margin-top: -5px; }
+        .btn { background: none; border: none; cursor: pointer; color: #B2DFDB; font-size: 18px; z-index: 5; padding: 0; }
+        .play-btn-ui { font-size: 32px; }
+
+        #player-wrapper {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 40px; height: 40px; opacity: 0;
+            z-index: 10;
+            overflow: hidden;
+            border-radius: 50%;
+        }
+        .is-playing #player-wrapper { z-index: -1; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div class="player-wrapper" id="cd-click-area">
+        <div id="cd-image"></div>
+        <div class="cd-center"></div>
+    </div>
+
+    <div class="controls" id="main-controls">
+        <div class="song-title" id="song-name">Loading...</div>
+        <div class="progress-container"><input type="range" id="progress-bar" value="0" min="0" max="100"></div>
+        <div class="time-info"><span id="current-time">0:00</span><span id="duration-time">0:00</span></div>
+        <div class="buttons">
+            <button class="btn" style="opacity: 0.5;">⏮</button>
+            <div class="btn play-btn-ui" id="play-pause-ui">▶</div>
+            <div id="player-wrapper"><div id="player"></div></div>
+            <button class="btn" style="opacity: 0.5;">⏭</button>
+        </div>
+    </div>
+
+    <script>
+        const VIDEO_ID = '6VHik9rPxp8'; 
+        const SONG_TITLE = '어리고 부끄럽고 바보 같은';
+
+        let player;
+        const playBtnUI = document.getElementById('play-pause-ui');
+        const progressBar = document.getElementById('progress-bar');
+        const cdImage = document.getElementById('cd-image');
+        const controls = document.getElementById('main-controls');
+        const cdClickArea = document.getElementById('cd-click-area');
+
+        document.getElementById('song-name').innerText = SONG_TITLE;
+
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '40', width: '40', videoId: VIDEO_ID,
+                playerVars: { 'enablejsapi': 1, 'origin': location.origin, 'controls': 0, 'modestbranding': 1 },
+                events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
+            });
+        }
+
+        function onPlayerReady() {
+            cdImage.style.backgroundImage = `url('https://img.youtube.com/vi/${VIDEO_ID}/maxresdefault.jpg')`;
+        }
+
+        playBtnUI.onclick = togglePlay;
+        cdClickArea.onclick = togglePlay;
+
+        function togglePlay() {
+            const state = player.getPlayerState();
+            if (state == 1) player.pauseVideo();
+            else player.playVideo();
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data == 1) { 
+                playBtnUI.innerText = '⏸';
+                cdImage.style.animationPlayState = 'running';
+                controls.classList.add('is-playing');
+                updateProgress();
+            } else {
+                playBtnUI.innerText = '▶';
+                cdImage.style.animationPlayState = 'paused';
+                controls.classList.remove('is-playing');
+            }
+        }
+
+        function updateProgress() {
+            if (player && player.getCurrentTime) {
+                const current = player.getCurrentTime();
+                const duration = player.getDuration();
+                if (duration > 0) {
+                    const progressValue = (current / duration) * 100;
+                    progressBar.value = progressValue;
+                    // 배경 사이즈 조절로 왼쪽 둥근 모서리 네모남 해결
+                    progressBar.style.backgroundSize = progressValue + '% 100%';
+                    document.getElementById('current-time').innerText = formatTime(current);
+                    document.getElementById('duration-time').innerText = formatTime(duration);
+                }
+                if (player.getPlayerState() == 1) setTimeout(updateProgress, 1000);
+            }
+        }
+
+        function formatTime(s) { const m=Math.floor(s/60); const sec=Math.floor(s%60); return `${m}:${sec<10?'0':''}${sec}`; }
+
+        progressBar.oninput = function() {
+            const duration = player.getDuration();
+            const value = progressBar.value;
+            progressBar.style.backgroundSize = value + '% 100%';
+            player.seekTo(duration * (value / 100));
+        };
+    </script>
+</body>
+</html>
